@@ -1,5 +1,5 @@
 # Reckoner
-This is a continuation of my personal work from [here](http://blog.thefrontiergroup.com.au/2015/05/blockchain-analytics-with-cayley-db/). This project will parse the entire blockchain into a graph database, in this case [dgraph](dgraph.io).
+This is a continuation of my personal work from [here](http://blog.thefrontiergroup.com.au/2015/05/blockchain-analytics-with-cayley-db/). This project will parse the entire blockchain into a [Cayley](cayley.io), a graph database.
 
 ## Installation
 
@@ -18,6 +18,7 @@ git clone https://github.com/btcsuite/btcd $GOPATH/src/github.com/btcsuite/btcd
 cd $GOPATH/src/github.com/btcsuite/btcd
 git pull && glide install
 go install . ./cmd/...
+btcd --txindex --rpcuser=user --rpcpass=pass
 ```
 
 ### reckoner
@@ -31,19 +32,46 @@ tail triples
 gzip triples
 cayley init -db bolt
 cayley load --quads ./triples.gz -db bolt -format nquad -ignoremissing -ignoredup
+cayley http -db bolt
 ```
 
-## Usage
+Open the browser at [localhost:64210]()
 
+## Sample Queries
+
+![visualization](http://imgur.com/iU5E9tw)
 ```
-# Pull blocks 0 to 1000 from the BTCD daemon
-$ btcer parse -s 0 -e 1000 | gzip > blocktriples
-# Assign UIDs to subjects
-$ dgraphassigner --rdfgzips blocktriples.gzip --uids ~/dgraph/uids/
-# Load into dgraph
-$ dgraphloader --rdfgzips blocktriples.gzip --uids ~/dgraph/uasync.final/ --postings ~/dgraph/p0/
-# Run dgraph
-$ dgraph --mutations ~/dgraph/m --postings ~/dgraph/p --uids ~/dgraph/u
+g.V("<block.1>").Tag("source")
+.Out("<bitcoin.height.block>").Tag("target")
+.Out("<bitcoin.block.nextblock>")
+.Out("<bitcoin.block.nextblock>")
+.Out("<bitcoin.block.nextblock>")
+.Out("<bitcoin.block.nextblock>")
+.Out("<bitcoin.block.nextblock>")
+.Tag("target").All()
+```
+
+![visualization](http://puu.sh/pUdhq/db31ac029b.png)
+```
+firstSource = g.V("<block.1>").Tag("source").Out("<bitcoin.height.block>")
+var newSource;
+var currSource = firstSource;
+var pairs = [];
+
+for (var i=0; i<10; i++) {
+  newSource = currSource.Out("<bitcoin.block.nextblock>").Tag("target");
+	if (!newSource) break;
+	pairs.push({
+		source: currSource.ToArray(),
+		target: newSource.ToArray()
+	});
+
+	currSource = newSource;
+}
+
+for (var i=0; i<pairs.length; i++) {
+	g.Emit({source: pairs[i].source[0], target: pairs[i].target[0]});
+}
 ```
 
 ## Contributing
